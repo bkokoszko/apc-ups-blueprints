@@ -1,6 +1,6 @@
 # APC UPS Power Sensor Template pour Home Assistant
 
-Un template YAML simple et bien documenté pour créer un capteur de puissance instantanée de votre UPS APC dans Home Assistant.
+Un template YAML personnalisable pour créer un capteur de puissance instantanée de votre UPS APC dans Home Assistant.
 
 ## 🎯 Objectif
 
@@ -9,6 +9,58 @@ Calculer la puissance instantanée (en Watts) de votre UPS APC basée sur :
 - **Puissance nominale** (en Watts)
 
 **Formule :** `Puissance instantanée = (Charge % ÷ 100) × Puissance nominale`
+
+## 🚀 Installation Rapide (Recommandée)
+
+### Générateur Automatique
+
+Utilisez le script générateur interactif pour créer votre template personnalisé :
+
+```bash
+./generate_ups_template.sh
+```
+
+Le script vous demandera :
+- 📋 **Nom de l'UPS** (ex: Bureau, Salon, Serveur)
+- 🔑 **Identifiant unique** (généré automatiquement)
+- 📊 **Entité de charge** (ex: `sensor.ups_load`)
+- ⚡ **Entité de puissance nominale** (ex: `sensor.ups_nominal_power`)
+- 🔋 **Puissance par défaut** (ex: 650W)
+
+**Résultat :** Un fichier YAML prêt à copier-coller dans Home Assistant !
+
+### Exemple d'utilisation du générateur :
+
+```bash
+$ ./generate_ups_template.sh
+
+========================================
+  GÉNÉRATEUR TEMPLATE UPS POWER SENSOR
+========================================
+
+📋 Nom descriptif de votre UPS (ex: Bureau, Salon, Serveur)
+  (défaut: Bureau)
+> Serveur
+
+🔑 Identifiant unique (sans espaces, minuscules)
+  (défaut: serveur)
+> 
+
+📊 Entité de charge UPS en % (ex: sensor.ups_load)
+  (défaut: sensor.ups_load)
+> sensor.apc_ups_load
+
+⚡ Entité de puissance nominale en W (ex: sensor.ups_nominal_power)
+  (défaut: sensor.ups_nominal_power)
+> sensor.apc_ups_nominal_power
+
+🔋 Puissance par défaut si entité indisponible (ex: 650)
+  (défaut: 650)
+> 1500
+
+✅ Template généré avec succès !
+📁 Fichier créé : ups_serveur_power_template.yaml
+```
 
 ## 📋 Prérequis
 
@@ -22,17 +74,29 @@ Calculer la puissance instantanée (en Watts) de votre UPS APC basée sur :
 - **Intégration USB** APC
 - Toute intégration exposant charge % et puissance nominale
 
-## 🚀 Installation
+## 📝 Installation Manuelle
 
-### Méthode 1: Via l'interface Template (Recommandée)
+Si vous préférez personnaliser manuellement, consultez les fichiers d'exemple :
+
+### 1. Identifier vos entités
+
+Dans Home Assistant → **Outils de développement** → **États**, recherchez :
+```
+sensor.ups_load              # Charge en %
+sensor.ups_nominal_power     # Puissance nominale en W
+```
+
+### 2. Méthodes d'installation
+
+#### Méthode 1: Via l'interface Template (Recommandée)
 
 1. **Paramètres** → **Appareils et services** → **Helpers**
 2. **+ CRÉER UN HELPER** → **Template** → **Capteur de template**
 3. **Effacez tout** le contenu par défaut dans l'éditeur
-4. **Copiez le template personnalisé** (voir section Utilisation)
+4. **Copiez le template généré** ou personnalisé
 5. **Enregistrez**
 
-### Méthode 2: Via configuration.yaml
+#### Méthode 2: Via configuration.yaml
 
 1. Éditez votre fichier `configuration.yaml`
 2. Ajoutez la section `template:` (ou complétez-la si elle existe)
@@ -40,89 +104,11 @@ Calculer la puissance instantanée (en Watts) de votre UPS APC basée sur :
 4. **Vérifiez la configuration** : Outils de développement → YAML → Vérifier
 5. **Redémarrez Home Assistant**
 
-## 📝 Utilisation
-
-### 1. Identifier vos entités
-
-D'abord, trouvez vos entités UPS :
-
-```bash
-# Dans les Outils de développement → États, recherchez :
-sensor.ups_load              # Charge en %
-sensor.ups_nominal_power     # Puissance nominale en W
-```
-
-### 2. Personnaliser le template
-
-Utilisez le template de base et remplacez :
-
-```yaml
-template:
-  - sensor:
-      - name: "UPS [VOTRE_NOM] - Puissance Instantanée"  # ← Nom descriptif
-        unique_id: "ups_power_[identifiant]"              # ← Identifiant unique
-        unit_of_measurement: "W"
-        device_class: power
-        state_class: measurement
-        icon: mdi:power-plug-outline
-        
-        availability: >-
-          {{ states('[ENTITE_CHARGE]') not in ['unavailable', 'unknown'] and
-             states('[ENTITE_PUISSANCE_NOMINALE]') not in ['unavailable', 'unknown'] }}
-        
-        state: >-
-          {% set load_percent = states('[ENTITE_CHARGE]') | float(0) %}
-          {% set nominal_power = states('[ENTITE_PUISSANCE_NOMINALE]') | float([PUISSANCE_DEFAUT]) %}
-          {{ (load_percent / 100 * nominal_power) | round(1) }}
-        
-        attributes:
-          ups_name: "[VOTRE_NOM]"
-          charge_percent: "{{ states('[ENTITE_CHARGE]') | float(0) }}"
-          nominal_power_w: "{{ states('[ENTITE_PUISSANCE_NOMINALE]') | float([PUISSANCE_DEFAUT]) }}"
-          formula: "{{ states('[ENTITE_CHARGE]') | float(0) }} % × {{ states('[ENTITE_PUISSANCE_NOMINALE]') | float([PUISSANCE_DEFAUT]) }} W"
-```
-
-**Remplacements nécessaires :**
-- `[VOTRE_NOM]` → "Bureau", "Salon", "Serveur"...
-- `[identifiant]` → "bureau", "salon", "serveur"...
-- `[ENTITE_CHARGE]` → `sensor.ups_load`
-- `[ENTITE_PUISSANCE_NOMINALE]` → `sensor.ups_nominal_power` 
-- `[PUISSANCE_DEFAUT]` → `650`, `900`, `1500`...
-
-### 3. Exemple concret
-
-Pour un UPS de bureau avec NUT :
-
-```yaml
-template:
-  - sensor:
-      - name: "UPS Bureau - Puissance Instantanée"
-        unique_id: "ups_power_bureau"
-        unit_of_measurement: "W"
-        device_class: power
-        state_class: measurement
-        icon: mdi:power-plug-outline
-        
-        availability: >-
-          {{ states('sensor.ups_load') not in ['unavailable', 'unknown'] and
-             states('sensor.ups_nominal_power') not in ['unavailable', 'unknown'] }}
-        
-        state: >-
-          {% set load_percent = states('sensor.ups_load') | float(0) %}
-          {% set nominal_power = states('sensor.ups_nominal_power') | float(650) %}
-          {{ (load_percent / 100 * nominal_power) | round(1) }}
-        
-        attributes:
-          ups_name: "Bureau"
-          charge_percent: "{{ states('sensor.ups_load') | float(0) }}"
-          nominal_power_w: "{{ states('sensor.ups_nominal_power') | float(650) }}"
-```
-
 ## 📊 Résultat
 
 Après installation, vous obtiendrez :
 
-- **Capteur** : `sensor.ups_bureau_puissance_instantanee`
+- **Capteur** : `sensor.ups_[nom]_puissance_instantanee`
 - **Valeur** : Puissance en Watts (ex: 156.5 W)
 - **Historique** compatible avec Energy Dashboard
 - **Attributs utiles** pour debugging
@@ -146,9 +132,27 @@ Après installation, vous obtiendrez :
 
 ## 📁 Fichiers inclus
 
-- `apc_ups_power_template.yaml` - Template principal avec documentation
+- **`generate_ups_template.sh`** - Générateur interactif de template personnalisé ⭐
+- `apc_ups_power_template.yaml` - Template de base avec documentation
 - `examples.yaml` - Exemples d'utilisation pour différents cas
 - `README.md` - Cette documentation
+
+## 🎯 Avantages du générateur
+
+✅ **Interface interactive** - Questions guidées avec valeurs par défaut  
+✅ **Validation automatique** - Vérification des noms d'entités  
+✅ **Template personnalisé** - Génération sur mesure pour votre configuration  
+✅ **Documentation incluse** - Instructions d'installation dans le fichier généré  
+✅ **Aucune erreur** - Pas de copier-coller manuel avec risques de fautes  
+
+## 🎨 Exemples de templates générés
+
+Le script peut générer des templates pour différents types d'UPS :
+
+- **UPS domestique** (Back-UPS 650VA) → Template optimisé pour NUT
+- **UPS professionnel** (Smart-UPS 1500VA) → Template avec SNMP
+- **Multi-UPS** → Templates séparés pour chaque UPS
+- **Configuration avancée** → Avec gestion d'erreurs étendue
 
 ## 🤝 Contribution
 
@@ -164,3 +168,21 @@ Ce template est libre d'utilisation et de modification.
 ---
 
 **💡 Astuce :** Utilisez ce capteur dans l'Energy Dashboard de Home Assistant pour suivre la consommation électrique protégée par votre UPS !
+
+## 🔧 Usage avancé
+
+### Script en mode non-interactif
+
+```bash
+echo -e "Serveur\nserveur\nsensor.ups_load\nsensor.ups_nominal_power\n1500\nn" | ./generate_ups_template.sh
+```
+
+### Génération de plusieurs templates
+
+```bash
+# UPS Bureau
+echo -e "Bureau\nbureau\nsensor.ups_bureau_load\nsensor.ups_bureau_nominal\n650\nn" | ./generate_ups_template.sh
+
+# UPS Salon  
+echo -e "Salon\nsalon\nsensor.ups_salon_load\nsensor.ups_salon_nominal\n900\nn" | ./generate_ups_template.sh
+```
