@@ -1,0 +1,65 @@
+# ========================================
+# APC UPS POWER SENSOR TEMPLATE
+# ========================================
+# 
+# Ce template crée un capteur de puissance instantanée pour un UPS APC
+# basé sur la charge (%) et la puissance nominale de l'UPS.
+#
+# INSTALLATION:
+# 1. Copiez ce code dans votre configuration Home Assistant
+# 2. Personnalisez les valeurs entre [ ] selon votre configuration
+# 3. Redémarrez Home Assistant ou rechargez les templates
+#
+# PRÉREQUIS:
+# - Avoir un UPS APC intégré dans Home Assistant (via SNMP, USB, ou NUT)
+# - Disposer d'une entité qui indique la charge en % 
+# - Disposer d'une entité qui indique la puissance nominale en W
+#
+# ========================================
+
+template:
+  - sensor:
+      # =======================================
+      # CAPTEUR DE PUISSANCE UPS
+      # =======================================
+      - name: "UPS [NOM_DE_VOTRE_UPS] - Puissance Instantanée"
+        unique_id: "ups_power_[nom_unique_sans_espaces]"
+        
+        # Configuration du capteur
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        icon: mdi:power-plug-outline
+        
+        # Disponibilité : le capteur n'est actif que si les données sources sont valides
+        availability: >-
+          {{ states('[ENTITE_CHARGE_PERCENT]') not in ['unavailable', 'unknown'] and
+             states('[ENTITE_PUISSANCE_NOMINALE]') not in ['unavailable', 'unknown'] }}
+        
+        # Calcul de la puissance : (charge % / 100) × puissance nominale
+        state: >-
+          {% set load_percent = states('[ENTITE_CHARGE_PERCENT]') | float(0) %}
+          {% set nominal_power = states('[ENTITE_PUISSANCE_NOMINALE]') | float([PUISSANCE_DEFAUT]) %}
+          {{ (load_percent / 100 * nominal_power) | round(1) }}
+        
+        # Attributs supplémentaires pour le debugging et l'historique
+        attributes:
+          ups_name: "[NOM_DE_VOTRE_UPS]"
+          charge_percent: "{{ states('[ENTITE_CHARGE_PERCENT]') | float(0) }}"
+          nominal_power_w: "{{ states('[ENTITE_PUISSANCE_NOMINALE]') | float([PUISSANCE_DEFAUT]) }}"
+          last_calculation: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+          formula: "{{ states('[ENTITE_CHARGE_PERCENT]') | float(0) }} % × {{ states('[ENTITE_PUISSANCE_NOMINALE]') | float([PUISSANCE_DEFAUT]) }} W = {{ (states('[ENTITE_CHARGE_PERCENT]') | float(0) / 100 * states('[ENTITE_PUISSANCE_NOMINALE]') | float([PUISSANCE_DEFAUT])) | round(1) }} W"
+
+# ========================================
+# PERSONNALISATION REQUISE
+# ========================================
+#
+# Remplacez les valeurs suivantes par vos entités réelles :
+#
+# [NOM_DE_VOTRE_UPS]          → Nom descriptif (ex: "Bureau", "Salon", "Serveur")
+# [nom_unique_sans_espaces]   → Identifiant unique en minuscules (ex: "bureau", "salon", "serveur")
+# [ENTITE_CHARGE_PERCENT]     → Entité de charge UPS en % (ex: sensor.ups_load)
+# [ENTITE_PUISSANCE_NOMINALE] → Entité puissance nominale en W (ex: sensor.ups_nominal_power)
+# [PUISSANCE_DEFAUT]          → Valeur par défaut si l'entité n'est pas disponible (ex: 650)
+#
+# ========================================

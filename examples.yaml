@@ -1,0 +1,133 @@
+# ========================================
+# EXEMPLES D'UTILISATION - APC UPS POWER SENSOR
+# ========================================
+
+# =======================================
+# EXEMPLE 1: UPS APC Back-UPS via NUT
+# =======================================
+template:
+  - sensor:
+      - name: "UPS Bureau - Puissance Instantanée"
+        unique_id: "ups_power_bureau"
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        icon: mdi:power-plug-outline
+        availability: >-
+          {{ states('sensor.ups_load') not in ['unavailable', 'unknown'] and
+             states('sensor.ups_nominal_power') not in ['unavailable', 'unknown'] }}
+        state: >-
+          {% set load_percent = states('sensor.ups_load') | float(0) %}
+          {% set nominal_power = states('sensor.ups_nominal_power') | float(650) %}
+          {{ (load_percent / 100 * nominal_power) | round(1) }}
+        attributes:
+          ups_name: "Bureau"
+          charge_percent: "{{ states('sensor.ups_load') | float(0) }}"
+          nominal_power_w: "{{ states('sensor.ups_nominal_power') | float(650) }}"
+          formula: "{{ states('sensor.ups_load') | float(0) }} % × {{ states('sensor.ups_nominal_power') | float(650) }} W"
+
+# =======================================
+# EXEMPLE 2: UPS APC Smart-UPS via SNMP
+# =======================================
+template:
+  - sensor:
+      - name: "UPS Serveur - Puissance Instantanée"
+        unique_id: "ups_power_serveur"
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        icon: mdi:power-plug-outline
+        availability: >-
+          {{ states('sensor.apc_ups_output_load') not in ['unavailable', 'unknown'] and
+             states('sensor.apc_ups_battery_capacity') not in ['unavailable', 'unknown'] }}
+        state: >-
+          {% set load_percent = states('sensor.apc_ups_output_load') | float(0) %}
+          {% set nominal_power = 1500 %}  # Puissance fixe pour Smart-UPS 1500VA
+          {{ (load_percent / 100 * nominal_power) | round(1) }}
+        attributes:
+          ups_name: "Serveur"
+          charge_percent: "{{ states('sensor.apc_ups_output_load') | float(0) }}"
+          nominal_power_w: "1500"
+          model: "Smart-UPS 1500VA"
+
+# =======================================
+# EXEMPLE 3: Plusieurs UPS dans le même template
+# =======================================
+template:
+  - sensor:
+      # Premier UPS
+      - name: "UPS Salon - Puissance Instantanée"
+        unique_id: "ups_power_salon"
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        icon: mdi:power-plug-outline
+        availability: >-
+          {{ states('sensor.ups_salon_load') not in ['unavailable', 'unknown'] }}
+        state: >-
+          {% set load_percent = states('sensor.ups_salon_load') | float(0) %}
+          {% set nominal_power = 900 %}
+          {{ (load_percent / 100 * nominal_power) | round(1) }}
+        attributes:
+          ups_name: "Salon"
+          charge_percent: "{{ states('sensor.ups_salon_load') | float(0) }}"
+          nominal_power_w: "900"
+
+      # Deuxième UPS  
+      - name: "UPS Chambre - Puissance Instantanée"
+        unique_id: "ups_power_chambre"
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        icon: mdi:power-plug-outline
+        availability: >-
+          {{ states('sensor.ups_chambre_load') not in ['unavailable', 'unknown'] }}
+        state: >-
+          {% set load_percent = states('sensor.ups_chambre_load') | float(0) %}
+          {% set nominal_power = 650 %}
+          {{ (load_percent / 100 * nominal_power) | round(1) }}
+        attributes:
+          ups_name: "Chambre"
+          charge_percent: "{{ states('sensor.ups_chambre_load') | float(0) }}"
+          nominal_power_w: "650"
+
+# =======================================
+# EXEMPLE 4: Avec gestion d'erreurs avancée
+# =======================================
+template:
+  - sensor:
+      - name: "UPS Avancé - Puissance Instantanée"
+        unique_id: "ups_power_avance"
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        icon: mdi:power-plug-outline
+        availability: >-
+          {{ states('sensor.ups_load') not in ['unavailable', 'unknown', 'None'] and
+             states('sensor.ups_load') | float(-1) >= 0 and
+             states('sensor.ups_load') | float(-1) <= 100 }}
+        state: >-
+          {% set load_percent = states('sensor.ups_load') | float(0) %}
+          {% set nominal_power = states('sensor.ups_nominal_power') | float(650) %}
+          {% if load_percent < 0 or load_percent > 100 %}
+            unavailable
+          {% else %}
+            {{ (load_percent / 100 * nominal_power) | round(1) }}
+          {% endif %}
+        attributes:
+          ups_name: "UPS Avancé"
+          charge_percent: "{{ states('sensor.ups_load') | float(0) }}"
+          nominal_power_w: "{{ states('sensor.ups_nominal_power') | float(650) }}"
+          status: >-
+            {% set load = states('sensor.ups_load') | float(-1) %}
+            {% if load < 0 %}
+              Erreur de lecture
+            {% elif load == 0 %}
+              Aucune charge
+            {% elif load < 25 %}
+              Charge faible
+            {% elif load < 75 %}
+              Charge normale
+            {% else %}
+              Charge élevée
+            {% endif %}
