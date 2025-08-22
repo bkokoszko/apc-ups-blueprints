@@ -5,10 +5,11 @@
 # ========================================
 # 
 # Ce script génère un template YAML personnalisé pour votre UPS APC
+# Crée 2 capteurs : Puissance (W) + Énergie (kWh) pour Dashboard Énergie
 # Usage: ./generate_ups_template.sh
 #
 # Auteur: Boris Kokoszko
-# Version: 1.0
+# Version: 2.0
 # ========================================
 
 set -e
@@ -18,11 +19,13 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Banner
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}  GÉNÉRATEUR TEMPLATE UPS POWER SENSOR${NC}"
+echo -e "${CYAN}   + DASHBOARD ÉNERGIE (kWh)${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
 
@@ -55,7 +58,10 @@ validate_entity() {
     fi
 }
 
-echo -e "${GREEN}Ce script va générer un template YAML personnalisé pour votre UPS.${NC}"
+echo -e "${GREEN}Ce script génère 2 capteurs pour votre UPS :${NC}"
+echo -e "${CYAN}  📊 Capteur de puissance (W) - pour monitoring temps réel${NC}"
+echo -e "${CYAN}  ⚡ Capteur d'énergie (kWh) - pour Dashboard Énergie${NC}"
+echo ""
 echo "Répondez aux questions suivantes :"
 echo ""
 
@@ -84,29 +90,36 @@ if ! [[ "$DEFAULT_POWER" =~ ^[0-9]+$ ]]; then
 fi
 
 echo ""
-echo -e "${GREEN}📝 Génération du template...${NC}"
+echo -e "${GREEN}📝 Génération des templates (puissance + énergie)...${NC}"
 
 # Nom du fichier de sortie
-OUTPUT_FILE="ups_${UPS_ID}_power_template.yaml"
+OUTPUT_FILE="ups_${UPS_ID}_power_energy_template.yaml"
 
 # Génération du template
 cat > "$OUTPUT_FILE" << TEMPLATE_EOF
 # ========================================
-# TEMPLATE UPS POWER SENSOR - $UPS_NAME
+# TEMPLATE UPS POWER + ENERGY SENSORS - $UPS_NAME
 # ========================================
 # Généré automatiquement le $(date '+%Y-%m-%d %H:%M:%S')
 # UPS: $UPS_NAME
 # Entité charge: $ENTITY_LOAD
 # Entité puissance: $ENTITY_NOMINAL
 # Puissance défaut: ${DEFAULT_POWER}W
+# 
+# CAPTEURS GÉNÉRÉS:
+# - sensor.ups_${UPS_ID}_puissance (W) - Monitoring temps réel
+# - sensor.ups_${UPS_ID}_energie (kWh) - Dashboard Énergie
 # ========================================
 
+# ========================================
+# 1. CAPTEUR DE PUISSANCE (Watts)
+# ========================================
 template:
   - sensor:
-      - name: "UPS $UPS_NAME - Puissance Instantanée"
+      - name: "UPS $UPS_NAME - Puissance"
         unique_id: "ups_power_${UPS_ID}"
         
-        # Configuration du capteur
+        # Configuration du capteur de puissance
         unit_of_measurement: "W"
         device_class: power
         state_class: measurement
@@ -132,28 +145,64 @@ template:
           formula: "{{ states('$ENTITY_LOAD') | float(0) }} % × {{ states('$ENTITY_NOMINAL') | float($DEFAULT_POWER) }} W = {{ (states('$ENTITY_LOAD') | float(0) / 100 * states('$ENTITY_NOMINAL') | float($DEFAULT_POWER)) | round(1) }} W"
 
 # ========================================
+# 2. CAPTEUR D'ÉNERGIE (kWh) - DASHBOARD ÉNERGIE
+# ========================================
+# Ce capteur utilise l'intégration Riemann pour convertir
+# la puissance instantanée (W) en énergie cumulée (kWh)
+sensor:
+  - platform: integration
+    source: sensor.ups_${UPS_ID}_puissance
+    name: "UPS $UPS_NAME - Énergie"
+    unique_id: "ups_energy_${UPS_ID}"
+    unit_prefix: k
+    round: 3
+    method: trapezoidal
+
+# ========================================
 # INSTALLATION
 # ========================================
 # 
-# 1. MÉTHODE HELPER (Recommandée) :
+# IMPORTANT: Ce template contient 2 sections différentes !
+#
+# 1. SECTION TEMPLATE (Capteur de puissance):
 #    - Paramètres → Appareils et services → Helpers
 #    - + CRÉER UN HELPER → Template → Capteur de template
-#    - Copiez le contenu de la section 'template' ci-dessus
+#    - Copiez SEULEMENT la section "template:" ci-dessus
 #    - Enregistrez
 #
-# 2. MÉTHODE CONFIGURATION.YAML :
-#    - Ajoutez ce contenu à votre configuration.yaml
+# 2. SECTION SENSOR (Capteur d'énergie):
+#    - Éditez votre configuration.yaml
+#    - Ajoutez la section "sensor:" ci-dessus
 #    - Vérifiez la configuration (Outils de développement → YAML)
 #    - Redémarrez Home Assistant
 #
+# ALTERNATIVE - Tout dans configuration.yaml:
+#    - Copiez les 2 sections dans configuration.yaml
+#    - Vérifiez et redémarrez
+#
 # ========================================
-# RÉSULTAT
+# UTILISATION DASHBOARD ÉNERGIE
 # ========================================
 #
-# Capteur créé : sensor.ups_${UPS_ID}_puissance_instantanee
-# Unité : Watts (W)
-# Compatibilité : Energy Dashboard
-# Attributs : ups_name, charge_percent, nominal_power_w, formula
+# Une fois les 2 capteurs créés :
+# 1. Paramètres → Tableaux de bord → Énergie
+# 2. Ajouter une consommation individuelle
+# 3. Sélectionner: sensor.ups_${UPS_ID}_energie
+# 4. Le capteur apparaîtra dans le dashboard avec historique kWh
+#
+# ========================================
+# RÉSULTATS
+# ========================================
+#
+# Capteurs créés :
+# - sensor.ups_${UPS_ID}_puissance (Watts)     → Valeur instantanée
+# - sensor.ups_${UPS_ID}_energie (kWh)         → Consommation cumulée
+#
+# Compatibilité :
+# - ✅ Monitoring temps réel (puissance)
+# - ✅ Dashboard Énergie (énergie)
+# - ✅ Historique long terme
+# - ✅ Statistiques de consommation
 #
 # ========================================
 TEMPLATE_EOF
@@ -173,11 +222,16 @@ echo -e "   Default Power   : ${DEFAULT_POWER}W"
 echo -e "   Output File     : $OUTPUT_FILE"
 echo ""
 
+echo -e "${CYAN}📊 CAPTEURS QUI SERONT CRÉÉS :${NC}"
+echo -e "   ${GREEN}🔋 sensor.ups_${UPS_ID}_puissance${NC}  → Puissance instantanée (W)"
+echo -e "   ${GREEN}⚡ sensor.ups_${UPS_ID}_energie${NC}     → Énergie cumulée (kWh)"
+echo ""
+
 # Instructions d'installation
 echo -e "${GREEN}🚀 PROCHAINES ÉTAPES :${NC}"
-echo -e "1. ${YELLOW}Copiez le contenu du fichier $OUTPUT_FILE${NC}"
-echo -e "2. ${YELLOW}Allez dans Home Assistant : Paramètres → Helpers → Créer Helper → Template${NC}"
-echo -e "3. ${YELLOW}Collez le template et enregistrez${NC}"
+echo -e "1. ${YELLOW}Template Helper:${NC} Copiez la section 'template:' → Helpers → Template"
+echo -e "2. ${YELLOW}Sensor Integration:${NC} Copiez la section 'sensor:' → configuration.yaml"
+echo -e "3. ${YELLOW}Dashboard Énergie:${NC} Ajoutez sensor.ups_${UPS_ID}_energie"
 echo ""
 
 # Proposition d'affichage du fichier
@@ -193,4 +247,5 @@ if [[ "$show_content" =~ ^[Yy]$ ]]; then
 fi
 
 echo ""
-echo -e "${GREEN}🎉 Terminé ! Votre template UPS est prêt à être utilisé.${NC}"
+echo -e "${GREEN}🎉 Terminé ! Vos templates UPS (puissance + énergie) sont prêts !${NC}"
+echo -e "${CYAN}💡 Le capteur d'énergie sera visible dans le Dashboard Énergie de Home Assistant${NC}"

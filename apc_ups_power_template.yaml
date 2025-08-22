@@ -1,14 +1,17 @@
 # ========================================
-# APC UPS POWER SENSOR TEMPLATE
+# APC UPS POWER + ENERGY SENSOR TEMPLATE
 # ========================================
 # 
-# Ce template crée un capteur de puissance instantanée pour un UPS APC
-# basé sur la charge (%) et la puissance nominale de l'UPS.
+# Ce template crée 2 capteurs pour votre UPS APC :
+# - Capteur de puissance instantanée (W) pour monitoring
+# - Capteur d'énergie cumulée (kWh) pour Dashboard Énergie
 #
 # INSTALLATION:
-# 1. Copiez ce code dans votre configuration Home Assistant
-# 2. Personnalisez les valeurs entre [ ] selon votre configuration
-# 3. Redémarrez Home Assistant ou rechargez les templates
+# 1. Personnalisez les valeurs entre [ ] selon votre configuration
+# 2. Section TEMPLATE → Helpers → Template dans Home Assistant
+# 3. Section SENSOR → configuration.yaml
+# 4. Redémarrez Home Assistant
+# 5. Dashboard Énergie → Ajouter sensor d'énergie
 #
 # PRÉREQUIS:
 # - Avoir un UPS APC intégré dans Home Assistant (via SNMP, USB, ou NUT)
@@ -17,15 +20,15 @@
 #
 # ========================================
 
+# ========================================
+# 1. CAPTEUR DE PUISSANCE (Watts)
+# ========================================
 template:
   - sensor:
-      # =======================================
-      # CAPTEUR DE PUISSANCE UPS
-      # =======================================
-      - name: "UPS [NOM_DE_VOTRE_UPS] - Puissance Instantanée"
+      - name: "UPS [NOM_DE_VOTRE_UPS] - Puissance"
         unique_id: "ups_power_[nom_unique_sans_espaces]"
         
-        # Configuration du capteur
+        # Configuration du capteur de puissance
         unit_of_measurement: "W"
         device_class: power
         state_class: measurement
@@ -48,7 +51,21 @@ template:
           charge_percent: "{{ states('[ENTITE_CHARGE_PERCENT]') | float(0) }}"
           nominal_power_w: "{{ states('[ENTITE_PUISSANCE_NOMINALE]') | float([PUISSANCE_DEFAUT]) }}"
           last_calculation: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
-          formula: "{{ states('[ENTITE_CHARGE_PERCENT]') | float(0) }} % × {{ states('[ENTITE_PUISSANCE_NOMINALE]') | float([PUISSANCE_DEFAUT]) }} W = {{ (states('[ENTITE_CHARGE_PERCENT]') | float(0) / 100 * states('[ENTITE_PUISSANCE_NOMINALE]') | float([PUISSANCE_DEFAUT])) | round(1) }} W"
+          formula: "{{ states('[ENTITE_CHARGE_PERCENT]') | float(0) }} % × {{ states('[ENTITE_PUISSANCE_NOMINALE]') | float([PUISSANCE_DEFAUT]) }} W"
+
+# ========================================
+# 2. CAPTEUR D'ÉNERGIE (kWh) - DASHBOARD ÉNERGIE  
+# ========================================
+# Ce capteur utilise l'intégration Riemann pour convertir
+# la puissance instantanée (W) en énergie cumulée (kWh)
+sensor:
+  - platform: integration
+    source: sensor.ups_power_[nom_unique_sans_espaces]
+    name: "UPS [NOM_DE_VOTRE_UPS] - Énergie"
+    unique_id: "ups_energy_[nom_unique_sans_espaces]"
+    unit_prefix: k
+    round: 3
+    method: trapezoidal
 
 # ========================================
 # PERSONNALISATION REQUISE
@@ -61,5 +78,44 @@ template:
 # [ENTITE_CHARGE_PERCENT]     → Entité de charge UPS en % (ex: sensor.ups_load)
 # [ENTITE_PUISSANCE_NOMINALE] → Entité puissance nominale en W (ex: sensor.ups_nominal_power)
 # [PUISSANCE_DEFAUT]          → Valeur par défaut si l'entité n'est pas disponible (ex: 650)
+#
+# ========================================
+# INSTALLATION DÉTAILLÉE
+# ========================================
+#
+# ÉTAPE 1 - CAPTEUR DE PUISSANCE :
+# 1. Paramètres → Appareils et services → Helpers
+# 2. + CRÉER UN HELPER → Template → Capteur de template  
+# 3. Copiez SEULEMENT la section "template:" ci-dessus
+# 4. Personnalisez les valeurs entre [ ]
+# 5. Enregistrez
+#
+# ÉTAPE 2 - CAPTEUR D'ÉNERGIE :
+# 1. Éditez votre fichier configuration.yaml
+# 2. Ajoutez la section "sensor:" ci-dessus (personnalisée)
+# 3. Vérifiez la configuration : Outils de développement → YAML → Vérifier
+# 4. Redémarrez Home Assistant
+#
+# ÉTAPE 3 - DASHBOARD ÉNERGIE :
+# 1. Paramètres → Tableaux de bord → Énergie  
+# 2. Ajouter une consommation individuelle
+# 3. Sélectionnez : sensor.ups_[nom]_energie
+# 4. Enregistrez
+#
+# ========================================
+# RÉSULTAT FINAL
+# ========================================
+#
+# Capteurs créés :
+# - sensor.ups_[nom]_puissance (W)    → Monitoring temps réel, graphiques
+# - sensor.ups_[nom]_energie (kWh)    → Dashboard Énergie, statistiques long terme
+#
+# Fonctionnalités :
+# - ✅ Monitoring temps réel de la charge UPS
+# - ✅ Historique de consommation énergétique  
+# - ✅ Intégration au Dashboard Énergie de HA
+# - ✅ Statistiques de coût énergétique
+# - ✅ Comparaison avec autres appareils
+# - ✅ Alertes de consommation anormale
 #
 # ========================================
